@@ -138,6 +138,25 @@ const Home = () => {
     setActionMessage(`${product.name} added to cart.`);
   };
 
+  const removeFromCart = (product, optionIndex) => {
+    if (!ensureAuthenticated()) {
+      return;
+    }
+
+    const cartKey = `${product._id}-${optionIndex}`;
+    const existingCart = JSON.parse(localStorage.getItem("cart") || "[]");
+    const updatedCart = existingCart.filter((item) => item.cartKey !== cartKey);
+
+    localStorage.setItem("cart", JSON.stringify(updatedCart));
+    window.dispatchEvent(new Event("cart-updated"));
+    setActionMessage(`${product.name} removed from cart.`);
+  };
+
+  const isInCart = (productId, optionIndex) => {
+    const existingCart = JSON.parse(localStorage.getItem("cart") || "[]");
+    return existingCart.some((item) => item.cartKey === `${productId}-${optionIndex}`);
+  };
+
   const buyNow = (product, selectedOption, optionIndex) => {
     if (!ensureAuthenticated()) {
       return;
@@ -290,6 +309,7 @@ const Home = () => {
               const pricingOptions = getPricingOptions(product);
               const selectedOptionIndex = selectedOptions[product._id] || 0;
               const selectedOption = pricingOptions[selectedOptionIndex] || pricingOptions[0];
+              const selectedOptionInCart = isInCart(product._id, selectedOptionIndex);
 
               return (
                 <article className="product-card-modern" key={product._id}>
@@ -336,6 +356,15 @@ const Home = () => {
                       >
                         Add to Cart
                       </button>
+                      {selectedOptionInCart ? (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => removeFromCart(product, selectedOptionIndex)}
+                        >
+                          Remove from Cart
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className="primary-button"

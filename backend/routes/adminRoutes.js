@@ -3,6 +3,7 @@ const Order = require("../models/Order");
 const Product = require("../models/Product");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const defaultProducts = require("../data/defaultProducts");
 const { protect, adminOnly } = require("../middleware/auth");
 
 const router = express.Router();
@@ -63,6 +64,39 @@ router.patch("/notifications/:id/read", async (req, res) => {
       { new: true }
     );
     res.json(notification);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/seed-products", async (req, res) => {
+  try {
+    const existingProducts = await Product.find({}, "name");
+    const existingNames = new Set(existingProducts.map((product) => product.name.toLowerCase()));
+
+    const productsToInsert = defaultProducts
+      .filter((product) => !existingNames.has(product.name.toLowerCase()))
+      .map((product) => {
+        const totalStock = product.pricingOptions.reduce((sum, option) => sum + option.stock, 0);
+
+        return {
+          ...product,
+          price: product.pricingOptions[0]?.price || 0,
+          stock: totalStock,
+          unit: product.pricingOptions[0]?.label || "Standard"
+        };
+      });
+
+    if (!productsToInsert.length) {
+      return res.json({ message: "Starter catalog already available.", added: 0 });
+    }
+
+    await Product.insertMany(productsToInsert);
+
+    res.json({
+      message: `${productsToInsert.length} starter products added successfully.`,
+      added: productsToInsert.length
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -38,6 +38,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ""
   },
+  preferredPaymentMethod: {
+    type: String,
+    enum: ["cash-on-delivery", "upi", "card", "bank-transfer"],
+    default: "cash-on-delivery"
+  },
   isAdmin: {
     type: Boolean,
     default: false

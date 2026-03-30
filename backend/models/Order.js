@@ -11,7 +11,10 @@ const orderSchema = new mongoose.Schema({
       productId: String,
       name: String,
       quantity: Number,
-      price: Number
+      price: Number,
+      variantLabel: String,
+      weight: Number,
+      unit: String
     }
   ],
   orderType: {

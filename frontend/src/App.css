@@ -287,6 +287,20 @@ select {
   margin-top: 34px;
 }
 
+.site-footer {
+  margin-top: 36px;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding: 18px 24px;
+  background: #000;
+  color: #fff;
+  text-align: center;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
 .catalog-toolbar {
   display: grid;
   grid-template-columns: 320px 1fr;
@@ -396,6 +410,38 @@ select {
   border-radius: 32px;
   background: linear-gradient(145deg, #1f342d, #335849);
   color: #f8f6f1;
+}
+
+.timing-section {
+  padding: 20px 22px;
+}
+
+.timing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.timing-card {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.timing-card h4,
+.timing-card p {
+  margin: 0;
+}
+
+.timing-card h4 {
+  margin-bottom: 4px;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.timing-card p {
+  color: rgba(248, 246, 241, 0.88);
 }
 
 .payments-strip {
@@ -636,6 +682,13 @@ select {
   border: 1px solid var(--line);
 }
 
+.pricing-option-row {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -708,6 +761,7 @@ select {
   .product-grid-modern,
   .info-grid,
   .timeline-grid,
+  .timing-grid,
   .metric-grid,
   .dual-grid,
   .payments-grid,

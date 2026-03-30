@@ -72,6 +72,7 @@ router.post("/login", async (req, res) => {
         city: user.city,
         state: user.state,
         pincode: user.pincode,
+        preferredPaymentMethod: user.preferredPaymentMethod,
         isAdmin: user.isAdmin
       }
     });
@@ -81,13 +82,36 @@ router.post("/login", async (req, res) => {
   }
 });
 
+const serializeUser = (user) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  phone: user.phone,
+  avatar: user.avatar,
+  address: user.address,
+  city: user.city,
+  state: user.state,
+  pincode: user.pincode,
+  preferredPaymentMethod: user.preferredPaymentMethod,
+  isAdmin: user.isAdmin
+});
+
 router.get("/me", protect, async (req, res) => {
-  res.json(req.user);
+  res.json(serializeUser(req.user));
 });
 
 router.put("/me", protect, async (req, res) => {
   try {
-    const fields = ["name", "phone", "avatar", "address", "city", "state", "pincode"];
+    const fields = [
+      "name",
+      "phone",
+      "avatar",
+      "address",
+      "city",
+      "state",
+      "pincode",
+      "preferredPaymentMethod"
+    ];
 
     fields.forEach((field) => {
       if (req.body[field] !== undefined) {
@@ -103,18 +127,7 @@ router.put("/me", protect, async (req, res) => {
 
     res.json({
       message: "Profile updated successfully",
-      user: {
-        _id: req.user._id,
-        name: req.user.name,
-        email: req.user.email,
-        phone: req.user.phone,
-        avatar: req.user.avatar,
-        address: req.user.address,
-        city: req.user.city,
-        state: req.user.state,
-        pincode: req.user.pincode,
-        isAdmin: req.user.isAdmin
-      }
+      user: serializeUser(req.user)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

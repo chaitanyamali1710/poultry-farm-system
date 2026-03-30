@@ -11,6 +11,7 @@ const Profile = () => {
     city: "",
     state: "",
     pincode: "",
+    preferredPaymentMethod: "cash-on-delivery",
     password: "",
   });
   const [orders, setOrders] = useState([]);
@@ -68,7 +69,16 @@ const Profile = () => {
   };
 
   const profileCompletion = useMemo(() => {
-    const fields = ["name", "phone", "avatar", "address", "city", "state", "pincode"];
+    const fields = [
+      "name",
+      "phone",
+      "avatar",
+      "address",
+      "city",
+      "state",
+      "pincode",
+      "preferredPaymentMethod",
+    ];
     const completed = fields.filter((field) => profile[field]).length;
     return Math.round((completed / fields.length) * 100);
   }, [profile]);
@@ -114,6 +124,17 @@ const Profile = () => {
             <input className="form-input" name="city" value={profile.city} onChange={handleChange} placeholder="City" />
             <input className="form-input" name="state" value={profile.state} onChange={handleChange} placeholder="State" />
             <input className="form-input" name="pincode" value={profile.pincode} onChange={handleChange} placeholder="Pincode" />
+            <select
+              className="form-input"
+              name="preferredPaymentMethod"
+              value={profile.preferredPaymentMethod}
+              onChange={handleChange}
+            >
+              <option value="cash-on-delivery">Cash on Delivery</option>
+              <option value="upi">UPI</option>
+              <option value="card">Card</option>
+              <option value="bank-transfer">Bank Transfer</option>
+            </select>
             <input className="form-input form-span" name="password" type="password" value={profile.password} onChange={handleChange} placeholder="Set a new password if needed" />
           </div>
           {message ? <p className="form-info">{message}</p> : null}
@@ -143,7 +164,7 @@ const Profile = () => {
                     <ul className="feature-list">
                       {order.products.map((item, index) => (
                         <li key={`${order._id}-${index}`}>
-                          {item.name} x {item.quantity}
+                          {item.name} {item.variantLabel ? `(${item.variantLabel})` : ""} x {item.quantity}
                         </li>
                       ))}
                     </ul>
@@ -151,6 +172,16 @@ const Profile = () => {
                 ))
               )}
             </div>
+          </div>
+
+          <div className="panel">
+            <h2>Saved payment preference</h2>
+            <p className="muted-copy">
+              Default mode: <strong>{profile.preferredPaymentMethod.replace(/-/g, " ")}</strong>
+            </p>
+            <p className="muted-copy">
+              You will choose or confirm the final payment mode while placing an order in checkout.
+            </p>
           </div>
 
           <div className="panel">

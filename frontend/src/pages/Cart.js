@@ -39,7 +39,12 @@ const Cart = () => {
 
     axios
       .get("/users/me")
-      .then((res) => setProfile(res.data))
+      .then((res) => {
+        setProfile(res.data);
+        if (res.data?.preferredPaymentMethod) {
+          setPaymentMethod(res.data.preferredPaymentMethod);
+        }
+      })
       .catch((err) => console.error(err));
   }, [checkoutNow]);
 
@@ -58,9 +63,9 @@ const Cart = () => {
     }
   };
 
-  const updateQuantity = (productId, delta) => {
+  const updateQuantity = (cartKey, delta) => {
     const updated = cart.map((item) =>
-      item.productId === productId
+      (item.cartKey || item.productId) === cartKey
         ? { ...item, quantity: Math.max(1, item.quantity + delta) }
         : item
     );
@@ -68,8 +73,8 @@ const Cart = () => {
     persistCart(updated);
   };
 
-  const removeItem = (productId) => {
-    const updated = cart.filter((item) => item.productId !== productId);
+  const removeItem = (cartKey) => {
+    const updated = cart.filter((item) => (item.cartKey || item.productId) !== cartKey);
     persistCart(updated);
   };
 
@@ -92,7 +97,9 @@ const Cart = () => {
 
       setMessage("Order request sent successfully. Admin has been notified.");
       localStorage.removeItem("checkoutNow");
-      localStorage.removeItem("cart");
+      if (!checkoutNow) {
+        localStorage.removeItem("cart");
+      }
       window.dispatchEvent(new Event("cart-updated"));
       setCart([]);
     } catch (err) {
@@ -121,7 +128,7 @@ const Cart = () => {
               </div>
             ) : (
               cart.map((item) => (
-                <div className="cart-item" key={item.productId}>
+                <div className="cart-item" key={item.cartKey || item.productId}>
                   <img
                     src={
                       item.image ||
@@ -135,17 +142,17 @@ const Cart = () => {
                       <strong>Rs. {item.price * item.quantity}</strong>
                     </div>
                     <p>
-                      Rs. {item.price} {item.unit ? `| ${item.unit}` : ""}
+                      Rs. {item.price} {item.variantLabel ? `| ${item.variantLabel}` : item.unit ? `| ${item.unit}` : ""}
                     </p>
                     <div className="quantity-strip">
-                      <button type="button" onClick={() => updateQuantity(item.productId, -1)}>
+                      <button type="button" onClick={() => updateQuantity(item.cartKey || item.productId, -1)}>
                         -
                       </button>
                       <span>{item.quantity}</span>
-                      <button type="button" onClick={() => updateQuantity(item.productId, 1)}>
+                      <button type="button" onClick={() => updateQuantity(item.cartKey || item.productId, 1)}>
                         +
                       </button>
-                      <button type="button" className="remove-link" onClick={() => removeItem(item.productId)}>
+                      <button type="button" className="remove-link" onClick={() => removeItem(item.cartKey || item.productId)}>
                         Remove
                       </button>
                     </div>
@@ -155,22 +162,24 @@ const Cart = () => {
             )}
           </div>
 
-          <div className="panel">
-            <h2>Payment options</h2>
-            <div className="payments-grid compact-grid">
-              {paymentOptions.map((option) => (
-                <button
-                  type="button"
-                  key={option.value}
-                  className={`payment-choice ${paymentMethod === option.value ? "active" : ""}`}
-                  onClick={() => setPaymentMethod(option.value)}
-                >
-                  <strong>{option.label}</strong>
-                  <span>{option.helper}</span>
-                </button>
-              ))}
+          {cart.length ? (
+            <div className="panel">
+              <h2>Payment options</h2>
+              <div className="payments-grid compact-grid">
+                {paymentOptions.map((option) => (
+                  <button
+                    type="button"
+                    key={option.value}
+                    className={`payment-choice ${paymentMethod === option.value ? "active" : ""}`}
+                    onClick={() => setPaymentMethod(option.value)}
+                  >
+                    <strong>{option.label}</strong>
+                    <span>{option.helper}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
 
         <aside className="panel order-summary">

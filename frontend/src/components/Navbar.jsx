@@ -44,10 +44,9 @@ function Navbar() {
 
   const navLinks = useMemo(
     () => [
-      { href: "/#catalog", label: "Catalog" },
-      { href: "/#why-us", label: "Why Us" },
-      { href: "/#delivery", label: "Delivery" },
-      { href: "/#payments", label: "Payments" },
+      { href: "/#about", label: "About" },
+      { href: "/#timing", label: "Shop Timing" },
+      { href: "/#products", label: "Products" },
     ],
     []
   );

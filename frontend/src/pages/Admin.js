@@ -1,17 +1,25 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "../api/axios";
 
-const emptyProduct = {
+const createPricingOption = (overrides = {}) => ({
+  id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  label: "",
+  weight: "",
+  unit: "kg",
+  price: "",
+  stock: "",
+  ...overrides,
+});
+
+const createEmptyProduct = () => ({
   name: "",
   category: "Fresh Chicken",
   description: "",
-  price: "",
-  unit: "per kg",
-  stock: "",
   image: "",
   badge: "",
   featured: false,
-};
+  pricingOptions: [createPricingOption({ label: "1 kg pack", weight: "1" })],
+});
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -20,9 +28,30 @@ const Admin = () => {
   const [products, setProducts] = useState([]);
   const [users, setUsers] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [formData, setFormData] = useState(emptyProduct);
+  const [formData, setFormData] = useState(createEmptyProduct);
   const [editingId, setEditingId] = useState(null);
   const [statusMessage, setStatusMessage] = useState("");
+  const [queuedProducts, setQueuedProducts] = useState([]);
+
+  const buildPricingOptions = (product) =>
+    product.pricingOptions?.length
+      ? product.pricingOptions.map((option) => ({
+          id: option.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          label: option.label,
+          weight: option.weight,
+          unit: option.unit,
+          price: option.price,
+          stock: option.stock,
+        }))
+      : [
+          {
+            label: product.unit || "Standard pack",
+            weight: "",
+            unit: "kg",
+            price: product.price,
+            stock: product.stock,
+          },
+        ];
 
   const loadDashboard = async () => {
     try {
@@ -61,26 +90,102 @@ const Admin = () => {
     event.preventDefault();
     setStatusMessage("");
 
-    const payload = {
-      ...formData,
-      price: Number(formData.price),
-      stock: Number(formData.stock),
-    };
+    const preparedProduct = buildProductPayload(formData);
+
+    if (!preparedProduct) {
+      return;
+    }
 
     try {
       if (editingId) {
-        await axios.put(`/products/${editingId}`, payload);
+        await axios.put(`/products/${editingId}`, preparedProduct);
         setStatusMessage("Product updated successfully.");
       } else {
-        await axios.post("/products", payload);
+        await axios.post("/products", preparedProduct);
         setStatusMessage("Product added successfully.");
       }
 
-      setFormData(emptyProduct);
+      setFormData(createEmptyProduct());
       setEditingId(null);
-      loadDashboard();
+      await loadDashboard();
+      window.dispatchEvent(new Event("products-updated"));
     } catch (err) {
-      setStatusMessage(err.response?.data?.message || "Product action failed.");
+      setStatusMessage(
+        err.response?.data?.message || err.response?.data?.error || "Product action failed."
+      );
+    }
+  };
+
+  const buildProductPayload = (draft) => {
+    const pricingOptions = draft.pricingOptions
+      .map((option) => ({
+        ...option,
+        label: option.label.trim(),
+        unit: option.unit.trim(),
+        weight: Number(option.weight) || 0,
+        price: Number(option.price),
+        stock: Number(option.stock),
+      }))
+      .filter((option) => option.label && option.unit && option.price > 0 && option.stock >= 0);
+
+    if (!draft.name.trim()) {
+      setStatusMessage("Please enter a product name.");
+      return null;
+    }
+
+    if (!draft.category.trim()) {
+      setStatusMessage("Please enter a product category.");
+      return null;
+    }
+
+    if (!pricingOptions.length) {
+      setStatusMessage("Add at least one valid weight, unit, rate, and stock row.");
+      return null;
+    }
+
+    return {
+      ...draft,
+      name: draft.name.trim(),
+      category: draft.category.trim(),
+      description: draft.description.trim(),
+      image: draft.image.trim(),
+      badge: draft.badge.trim(),
+      pricingOptions,
+    };
+  };
+
+  const queueCurrentProduct = () => {
+    setStatusMessage("");
+    const preparedProduct = buildProductPayload(formData);
+
+    if (!preparedProduct) {
+      return;
+    }
+
+    setQueuedProducts((current) => [...current, preparedProduct]);
+    setFormData(createEmptyProduct());
+    setStatusMessage("Product saved in batch list. Add another one or create all.");
+  };
+
+  const submitQueuedProducts = async () => {
+    if (!queuedProducts.length) {
+      setStatusMessage("No queued products to create.");
+      return;
+    }
+
+    try {
+      for (const product of queuedProducts) {
+        await axios.post("/products", product);
+      }
+
+      setQueuedProducts([]);
+      setStatusMessage("Queued products added successfully.");
+      await loadDashboard();
+      window.dispatchEvent(new Event("products-updated"));
+    } catch (err) {
+      setStatusMessage(
+        err.response?.data?.message || err.response?.data?.error || "Product action failed."
+      );
     }
   };
 
@@ -90,12 +195,10 @@ const Admin = () => {
       name: product.name,
       category: product.category,
       description: product.description,
-      price: product.price,
-      unit: product.unit,
-      stock: product.stock,
       image: product.image,
       badge: product.badge,
       featured: product.featured,
+      pricingOptions: buildPricingOptions(product),
     });
     setActiveTab("products");
   };
@@ -113,6 +216,43 @@ const Admin = () => {
   const markNotificationRead = async (notificationId) => {
     await axios.patch(`/admin/notifications/${notificationId}/read`);
     loadDashboard();
+  };
+
+  const updatePricingOption = (index, field, value) => {
+    setFormData((current) => ({
+      ...current,
+      pricingOptions: current.pricingOptions.map((option, optionIndex) =>
+        optionIndex === index ? { ...option, [field]: value } : option
+      ),
+    }));
+  };
+
+  const addPricingOption = () => {
+    setFormData((current) => ({
+      ...current,
+      pricingOptions: [...current.pricingOptions, createPricingOption()],
+    }));
+  };
+
+  const removePricingOption = (index) => {
+    setFormData((current) => ({
+      ...current,
+      pricingOptions:
+        current.pricingOptions.length === 1
+          ? current.pricingOptions
+          : current.pricingOptions.filter((_, optionIndex) => optionIndex !== index),
+    }));
+  };
+
+  const loadStarterCatalog = async () => {
+    try {
+      const res = await axios.post("/admin/seed-products");
+      setStatusMessage(res.data.message);
+      await loadDashboard();
+      window.dispatchEvent(new Event("products-updated"));
+    } catch (err) {
+      setStatusMessage(err.response?.data?.message || "Starter catalog could not be loaded.");
+    }
   };
 
   const pricingHighlights = useMemo(() => {
@@ -262,35 +402,140 @@ const Admin = () => {
                 <div className="form-grid">
                   <input className="form-input" name="name" placeholder="Product name" value={formData.name} onChange={handleFormChange} />
                   <input className="form-input" name="category" placeholder="Category" value={formData.category} onChange={handleFormChange} />
-                  <input className="form-input" name="price" type="number" placeholder="Price" value={formData.price} onChange={handleFormChange} />
-                  <input className="form-input" name="unit" placeholder="Unit" value={formData.unit} onChange={handleFormChange} />
-                  <input className="form-input" name="stock" type="number" placeholder="Stock" value={formData.stock} onChange={handleFormChange} />
                   <input className="form-input" name="badge" placeholder="Badge" value={formData.badge} onChange={handleFormChange} />
                   <input className="form-input form-span" name="image" placeholder="Image URL" value={formData.image} onChange={handleFormChange} />
                   <textarea className="form-input form-span" rows="4" name="description" placeholder="Short product description" value={formData.description} onChange={handleFormChange} />
+                </div>
+                <div className="panel">
+                  <div className="list-row">
+                    <h3>Weight and rate options</h3>
+                    <button type="button" className="secondary-button" onClick={addPricingOption}>
+                      Add pack size
+                    </button>
+                  </div>
+                  <div className="admin-list">
+                    {formData.pricingOptions.map((option, index) => (
+                      <div className="pricing-option-row" key={option.id || index}>
+                        <div className="form-grid">
+                          <input
+                            className="form-input"
+                            placeholder="Pack label (500 g / 1 kg / 30 eggs)"
+                            value={option.label}
+                            onChange={(event) => updatePricingOption(index, "label", event.target.value)}
+                          />
+                          <input
+                            className="form-input"
+                            type="number"
+                            placeholder="Weight / quantity"
+                            value={option.weight}
+                            onChange={(event) => updatePricingOption(index, "weight", event.target.value)}
+                          />
+                          <input
+                            className="form-input"
+                            placeholder="Unit (kg / pcs)"
+                            value={option.unit}
+                            onChange={(event) => updatePricingOption(index, "unit", event.target.value)}
+                          />
+                          <input
+                            className="form-input"
+                            type="number"
+                            placeholder="Rate"
+                            value={option.price}
+                            onChange={(event) => updatePricingOption(index, "price", event.target.value)}
+                          />
+                          <input
+                            className="form-input"
+                            type="number"
+                            placeholder="Stock"
+                            value={option.stock}
+                            onChange={(event) => updatePricingOption(index, "stock", event.target.value)}
+                          />
+                          <button
+                            type="button"
+                            className="nav-button"
+                            onClick={() => removePricingOption(index)}
+                            disabled={formData.pricingOptions.length === 1}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <label className="checkbox-row">
                   <input type="checkbox" name="featured" checked={formData.featured} onChange={handleFormChange} />
                   Feature this product on the home page
                 </label>
                 <div className="button-row">
-                  <button className="primary-button form-button">
+                  <button type="submit" className="primary-button">
                     {editingId ? "Update product" : "Add product"}
                   </button>
+                  {!editingId ? (
+                    <button type="button" className="secondary-button" onClick={queueCurrentProduct}>
+                      Add another product
+                    </button>
+                  ) : null}
                   {editingId ? (
                     <button
                       type="button"
                       className="secondary-button"
                       onClick={() => {
                         setEditingId(null);
-                        setFormData(emptyProduct);
+                        setFormData(createEmptyProduct());
                       }}
                     >
                       Cancel edit
                     </button>
                   ) : null}
+                  <button type="button" className="secondary-button" onClick={loadStarterCatalog}>
+                    Load starter catalog
+                  </button>
                 </div>
               </form>
+
+              {!editingId ? (
+                <div className="panel">
+                  <div className="list-row">
+                    <h3>Queued products</h3>
+                    <button type="button" className="primary-button" onClick={submitQueuedProducts}>
+                      Create all queued products
+                    </button>
+                  </div>
+                  {queuedProducts.length === 0 ? (
+                    <div className="empty-state">
+                      No products in batch yet. Use "Add another product" to queue multiple items.
+                    </div>
+                  ) : (
+                    <div className="admin-list">
+                      {queuedProducts.map((product, index) => (
+                        <div className="admin-card" key={`${product.name}-${index}`}>
+                          <div className="list-row">
+                            <strong>{product.name}</strong>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() =>
+                                setQueuedProducts((current) =>
+                                  current.filter((_, productIndex) => productIndex !== index)
+                                )
+                              }
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <p>{product.category}</p>
+                          <p className="muted-copy">
+                            {product.pricingOptions
+                              .map((option) => `${option.label}: Rs. ${option.price}`)
+                              .join(" | ")}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
 
               <div className="panel">
                 <h3>Current catalog</h3>
@@ -300,7 +545,12 @@ const Admin = () => {
                       <div>
                         <h4>{product.name}</h4>
                         <p>
-                          Rs. {product.price} | {product.stock} in stock | {product.category}
+                          From Rs. {product.price} | {product.stock} in stock | {product.category}
+                        </p>
+                        <p className="muted-copy">
+                          {(product.pricingOptions?.length ? product.pricingOptions : buildPricingOptions(product))
+                            .map((option) => `${option.label}: Rs. ${option.price}`)
+                            .join(" | ")}
                         </p>
                       </div>
                       <div className="button-row">
@@ -344,7 +594,7 @@ const Admin = () => {
                     <ul className="feature-list">
                       {order.products.map((product, index) => (
                         <li key={`${order._id}-${index}`}>
-                          {product.name} x {product.quantity} = Rs. {product.price * product.quantity}
+                          {product.name} {product.variantLabel ? `(${product.variantLabel})` : ""} x {product.quantity} = Rs. {product.price * product.quantity}
                         </li>
                       ))}
                     </ul>

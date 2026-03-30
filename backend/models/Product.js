@@ -25,6 +25,30 @@ const productSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  pricingOptions: [
+    {
+      label: {
+        type: String,
+        required: true
+      },
+      weight: {
+        type: Number,
+        default: 0
+      },
+      unit: {
+        type: String,
+        default: "kg"
+      },
+      price: {
+        type: Number,
+        required: true
+      },
+      stock: {
+        type: Number,
+        default: 0
+      }
+    }
+  ],
   image: {
     type: String
   },

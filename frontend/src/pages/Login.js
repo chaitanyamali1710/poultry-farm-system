@@ -33,7 +33,7 @@ const Login = () => {
           <h1>Sign in to manage orders, checkout faster, and track every purchase.</h1>
           <p>
             Admins can update live pricing and monitor orders. Customers can shop, pay by preferred
-            method, and edit their profile.
+            method, and edit their profile. Admin users are redirected to `/admin` after login.
           </p>
         </div>
 

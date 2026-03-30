@@ -5,9 +5,21 @@ const productSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  category: {
+    type: String,
+    default: "Farm Fresh"
+  },
+  description: {
+    type: String,
+    default: ""
+  },
   price: {
     type: Number,
     required: true
+  },
+  unit: {
+    type: String,
+    default: "per kg"
   },
   stock: {
     type: Number,
@@ -15,7 +27,15 @@ const productSchema = new mongoose.Schema({
   },
   image: {
     type: String
+  },
+  featured: {
+    type: Boolean,
+    default: false
+  },
+  badge: {
+    type: String,
+    default: ""
   }
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model("Product", productSchema);

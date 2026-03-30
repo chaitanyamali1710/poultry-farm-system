@@ -360,11 +360,20 @@ select {
   overflow: hidden;
   background: var(--surface-strong);
   box-shadow: var(--shadow);
+  border: 1px solid rgba(214, 194, 169, 0.52);
 }
 
 .product-image-wrap {
   position: relative;
-  min-height: 260px;
+  aspect-ratio: 1 / 1;
+  padding: 14px;
+  background:
+    radial-gradient(circle at top, rgba(240, 189, 129, 0.3), transparent 58%),
+    linear-gradient(180deg, #fff8ef 0%, #f0e1cf 100%);
+}
+
+.product-image-wrap img {
+  border-radius: 22px;
 }
 
 .product-badge {
@@ -396,6 +405,10 @@ select {
   align-items: baseline;
   gap: 10px;
   margin: 18px 0;
+}
+
+.product-actions > * {
+  flex: 1 1 180px;
 }
 
 .product-meta strong,
@@ -591,7 +604,11 @@ select {
 }
 
 .cart-item img {
+  width: 120px;
   height: 120px;
+  padding: 10px;
+  object-fit: contain;
+  background: linear-gradient(180deg, #fff9f1 0%, #f4e4d2 100%);
 }
 
 .cart-item:last-child {
@@ -619,6 +636,38 @@ select {
 
 .summary-block {
   margin: 18px 0;
+}
+
+.upi-app-grid {
+  margin-top: 12px;
+}
+
+.upi-launch-button {
+  margin-top: 14px;
+}
+
+.upi-qr-card {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 18px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.upi-qr-image {
+  width: 100%;
+  max-width: 220px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.is-confirmed {
+  background: var(--accent) !important;
 }
 
 .admin-layout {
@@ -766,7 +815,8 @@ select {
   .dual-grid,
   .payments-grid,
   .testimonials-grid,
-  .compact-grid {
+  .compact-grid,
+  .upi-qr-card {
     grid-template-columns: 1fr;
   }
 
@@ -808,5 +858,10 @@ select {
 
   .cart-item {
     grid-template-columns: 1fr;
+  }
+
+  .cart-item img {
+    width: 100%;
+    max-width: 220px;
   }
 }

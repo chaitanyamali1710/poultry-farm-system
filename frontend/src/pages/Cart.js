@@ -6,32 +6,42 @@ const paymentOptions = [
   {
     value: "cash-on-delivery",
     label: "Cash on Delivery",
-    helper: "Best for doorstep settlement after delivery confirmation.",
+    helper: "Place the order directly and pay when the delivery reaches you.",
   },
   {
     value: "upi",
     label: "UPI",
-    helper: "Customer selects UPI and the admin can confirm collection/payment status.",
-  },
-  {
-    value: "card",
-    label: "Card",
-    helper: "Prepared for a live gateway integration such as Razorpay or Stripe.",
-  },
-  {
-    value: "bank-transfer",
-    label: "Bank Transfer",
-    helper: "Useful for large or restaurant orders that require invoice-style processing.",
+    helper: "Choose a UPI app like Google Pay or PhonePe before placing the order.",
   },
 ];
+
+const upiApps = [
+  { value: "google-pay", label: "Google Pay", scheme: "tez://upi/pay" },
+  { value: "phonepe", label: "PhonePe", scheme: "phonepe://pay" },
+];
+
+const merchantUpiId = process.env.REACT_APP_UPI_ID || "chai17102005@oksbi";
+const merchantName = process.env.REACT_APP_UPI_NAME || "Salunkhe Poultry";
+const upiStartedKey = "upiPaymentStarted";
+const upiConfirmedKey = "upiPaymentConfirmed";
 
 const Cart = () => {
   const [cart, setCart] = useState([]);
   const [profile, setProfile] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState("cash-on-delivery");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [checkoutStep, setCheckoutStep] = useState("cart");
+  const [selectedUpiApp, setSelectedUpiApp] = useState("google-pay");
+  const [upiPaymentStarted, setUpiPaymentStarted] = useState(
+    () => sessionStorage.getItem(upiStartedKey) === "true"
+  );
+  const [upiPaidConfirmed, setUpiPaidConfirmed] = useState(
+    () => sessionStorage.getItem(upiConfirmedKey) === "true"
+  );
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
-  const checkoutNow = JSON.parse(localStorage.getItem("checkoutNow") || "null");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const checkoutNowRaw = localStorage.getItem("checkoutNow");
+  const checkoutNow = useMemo(() => JSON.parse(checkoutNowRaw || "null"), [checkoutNowRaw]);
 
   useEffect(() => {
     const storedCart = JSON.parse(localStorage.getItem("cart") || "[]");
@@ -41,9 +51,6 @@ const Cart = () => {
       .get("/users/me")
       .then((res) => {
         setProfile(res.data);
-        if (res.data?.preferredPaymentMethod) {
-          setPaymentMethod(res.data.preferredPaymentMethod);
-        }
       })
       .catch((err) => console.error(err));
   }, [checkoutNow]);
@@ -54,6 +61,61 @@ const Cart = () => {
   );
 
   const selectedPayment = paymentOptions.find((option) => option.value === paymentMethod);
+  const requiresUpiApp = paymentMethod === "upi";
+  const upiPaymentLink = useMemo(() => {
+    const params = new URLSearchParams({
+      pa: merchantUpiId,
+      pn: merchantName,
+      am: String(totalPrice),
+      cu: "INR",
+      tn: checkoutNow ? "Buy now order" : "Cart order",
+    });
+
+    return `upi://pay?${params.toString()}`;
+  }, [checkoutNow, totalPrice]);
+  const upiQrCodeUrl = useMemo(
+    () =>
+      `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+        upiPaymentLink
+      )}`,
+    [upiPaymentLink]
+  );
+
+  useEffect(() => {
+    sessionStorage.setItem(upiStartedKey, String(upiPaymentStarted));
+  }, [upiPaymentStarted]);
+
+  useEffect(() => {
+    sessionStorage.setItem(upiConfirmedKey, String(upiPaidConfirmed));
+  }, [upiPaidConfirmed]);
+
+  useEffect(() => {
+    if (paymentMethod !== "upi") {
+      setUpiPaymentStarted(false);
+      setUpiPaidConfirmed(false);
+    }
+  }, [paymentMethod]);
+
+  const openUpiApp = () => {
+    const selectedApp = upiApps.find((app) => app.value === selectedUpiApp);
+
+    if (!selectedApp) {
+      setMessage("Please choose a UPI app before continuing.");
+      return;
+    }
+
+    const deepLink = upiPaymentLink.replace("upi://pay", selectedApp.scheme);
+    setUpiPaymentStarted(true);
+    setUpiPaidConfirmed(false);
+    setMessage("Complete the payment in your UPI app, then return here and confirm it.");
+    window.location.href = deepLink;
+  };
+
+  const confirmUpiPayment = () => {
+    setUpiPaymentStarted(true);
+    setUpiPaidConfirmed(true);
+    setMessage("Payment marked as completed. You can now place your order.");
+  };
 
   const persistCart = (items) => {
     setCart(items);
@@ -86,12 +148,34 @@ const Cart = () => {
       return;
     }
 
+    if (!paymentMethod) {
+      setMessage("Please select a payment method before placing the order.");
+      return;
+    }
+
+    if (requiresUpiApp && !selectedUpiApp) {
+      setMessage("Please select a UPI app before placing the order.");
+      return;
+    }
+
+    if (requiresUpiApp && !upiPaidConfirmed) {
+      setMessage("Please complete your UPI payment and confirm it before placing the order.");
+      return;
+    }
+
     try {
+      setIsSubmitting(true);
       await axios.post("/orders", {
         products: cart,
         totalPrice,
         paymentMethod,
-        note,
+        note: [
+          note,
+          requiresUpiApp ? `UPI App: ${selectedUpiApp}` : "",
+          requiresUpiApp ? "UPI Payment: customer confirmed paid" : "",
+        ]
+          .filter(Boolean)
+          .join(" | "),
         orderType: checkoutNow ? "buy-now" : "cart",
       });
 
@@ -102,9 +186,31 @@ const Cart = () => {
       }
       window.dispatchEvent(new Event("cart-updated"));
       setCart([]);
+      setCheckoutStep("cart");
+      setSelectedUpiApp("google-pay");
+      setPaymentMethod("");
+      setUpiPaymentStarted(false);
+      setUpiPaidConfirmed(false);
     } catch (err) {
       setMessage(err.response?.data?.message || "Order failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const proceedToPayment = () => {
+    setMessage("");
+
+    if (!cart.length) {
+      return;
+    }
+
+    if (!profile?.address || !profile?.city || !profile?.pincode) {
+      setMessage("Please complete your profile address before continuing to payment.");
+      return;
+    }
+
+    setCheckoutStep("payment");
   };
 
   return (
@@ -162,7 +268,7 @@ const Cart = () => {
             )}
           </div>
 
-          {cart.length ? (
+          {cart.length && checkoutStep === "payment" ? (
             <div className="panel">
               <h2>Payment options</h2>
               <div className="payments-grid compact-grid">
@@ -178,6 +284,62 @@ const Cart = () => {
                   </button>
                 ))}
               </div>
+
+              {paymentMethod === "upi" ? (
+                <div className="summary-block">
+                  <label>Choose your UPI app</label>
+                  <div className="payments-grid compact-grid upi-app-grid">
+                    {upiApps.map((app) => (
+                      <button
+                        type="button"
+                        key={app.value}
+                        className={`payment-choice ${selectedUpiApp === app.value ? "active" : ""}`}
+                        onClick={() => setSelectedUpiApp(app.value)}
+                      >
+                        <strong>{app.label}</strong>
+                        <span>Tap to continue with {app.label}.</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <button type="button" className="secondary-button upi-launch-button" onClick={openUpiApp}>
+                    Open {upiApps.find((app) => app.value === selectedUpiApp)?.label || "UPI App"}
+                  </button>
+                  <p className="muted-copy compact">
+                    On supported phones this opens your selected UPI app. After payment, return here
+                    and place the order.
+                  </p>
+                  <div className="upi-qr-card">
+                    <img src={upiQrCodeUrl} alt="UPI payment QR code" className="upi-qr-image" />
+                    <div>
+                      <strong>QR fallback</strong>
+                      <p className="muted-copy compact">
+                        If the app does not open, scan this QR code with any UPI app and then come
+                        back here.
+                      </p>
+                    </div>
+                  </div>
+                  {upiPaymentStarted ? (
+                    <button
+                      type="button"
+                      className={`primary-button form-button ${upiPaidConfirmed ? "is-confirmed" : ""}`}
+                      onClick={confirmUpiPayment}
+                    >
+                      {upiPaidConfirmed ? "Payment Confirmed" : "I Have Paid"}
+                    </button>
+                  ) : null}
+                  {upiPaidConfirmed ? (
+                    <p className="form-info compact">
+                      UPI payment confirmed. You can now place the order.
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="muted-copy compact">
+                  Cash on delivery will skip the online payment app step and place the order
+                  directly.
+                </p>
+              )}
             </div>
           ) : null}
         </div>
@@ -195,9 +357,9 @@ const Cart = () => {
           <div className="summary-block">
             <label>Selected payment mode</label>
             <p className="muted-copy">
-              <strong>{selectedPayment?.label}</strong>
+              <strong>{selectedPayment?.label || "Choose payment method"}</strong>
             </p>
-            <p className="muted-copy">{selectedPayment?.helper}</p>
+            {selectedPayment?.helper ? <p className="muted-copy">{selectedPayment.helper}</p> : null}
           </div>
           <div className="summary-block">
             <label>Delivery note</label>
@@ -217,23 +379,39 @@ const Cart = () => {
                 : "No saved address found yet."}
             </p>
           </div>
-          <div className="summary-block">
-            <label>Request type</label>
-            <p className="muted-copy">
-              {checkoutNow
-                ? "Buy-now request will be sent directly to the admin panel."
-                : "Cart order will be created and visible in the admin order queue."}
-            </p>
-          </div>
           {message ? <p className="form-info">{message}</p> : null}
-          <button
-            type="button"
-            className="primary-button form-button"
-            disabled={!cart.length}
-            onClick={placeOrder}
-          >
-            {checkoutNow ? "Send Buy Now Request" : "Place Order"}
-          </button>
+          {checkoutStep === "cart" ? (
+            <button
+              type="button"
+              className="primary-button form-button"
+              disabled={!cart.length}
+              onClick={proceedToPayment}
+            >
+              Proceed to Payment
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="secondary-button form-button"
+                onClick={() => setCheckoutStep("cart")}
+              >
+                Back to Cart
+              </button>
+              <button
+                type="button"
+                className="primary-button form-button"
+                disabled={!cart.length || isSubmitting}
+                onClick={placeOrder}
+              >
+                {paymentMethod === "upi"
+                  ? "Place Order"
+                  : checkoutNow
+                    ? "Place Buy Now Order"
+                    : "Place Your Order"}
+              </button>
+            </>
+          )}
         </aside>
       </div>
     </section>

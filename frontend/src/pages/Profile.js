@@ -132,8 +132,6 @@ const Profile = () => {
             >
               <option value="cash-on-delivery">Cash on Delivery</option>
               <option value="upi">UPI</option>
-              <option value="card">Card</option>
-              <option value="bank-transfer">Bank Transfer</option>
             </select>
             <input className="form-input form-span" name="password" type="password" value={profile.password} onChange={handleChange} placeholder="Set a new password if needed" />
           </div>

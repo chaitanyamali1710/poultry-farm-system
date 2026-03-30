@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
 import Footer from "../components/Footer";
 
@@ -21,11 +22,13 @@ const shopTiming = [
 ];
 
 const Home = () => {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOptions, setSelectedOptions] = useState({});
+  const [actionMessage, setActionMessage] = useState("");
 
   const loadProducts = async () => {
     try {
@@ -88,6 +91,63 @@ const Home = () => {
 
   const updateSelectedOption = (productId, optionIndex) => {
     setSelectedOptions((current) => ({ ...current, [productId]: Number(optionIndex) }));
+  };
+
+  const buildCartItem = (product, selectedOption, optionIndex) => ({
+    productId: product._id,
+    cartKey: `${product._id}-${optionIndex}`,
+    name: product.name,
+    image: product.image,
+    quantity: 1,
+    price: selectedOption.price,
+    variantLabel: selectedOption.label,
+    weight: selectedOption.weight,
+    unit: selectedOption.unit || product.unit,
+  });
+
+  const ensureAuthenticated = () => {
+    if (localStorage.getItem("token")) {
+      return true;
+    }
+
+    navigate("/login");
+    return false;
+  };
+
+  const addToCart = (product, selectedOption, optionIndex) => {
+    if (!ensureAuthenticated()) {
+      return;
+    }
+
+    const newItem = buildCartItem(product, selectedOption, optionIndex);
+    const existingCart = JSON.parse(localStorage.getItem("cart") || "[]");
+    const existingIndex = existingCart.findIndex((item) => item.cartKey === newItem.cartKey);
+
+    if (existingIndex >= 0) {
+      existingCart[existingIndex] = {
+        ...existingCart[existingIndex],
+        quantity: existingCart[existingIndex].quantity + 1,
+      };
+    } else {
+      existingCart.push(newItem);
+    }
+
+    localStorage.setItem("cart", JSON.stringify(existingCart));
+    localStorage.removeItem("checkoutNow");
+    window.dispatchEvent(new Event("cart-updated"));
+    setActionMessage(`${product.name} added to cart.`);
+  };
+
+  const buyNow = (product, selectedOption, optionIndex) => {
+    if (!ensureAuthenticated()) {
+      return;
+    }
+
+    localStorage.setItem(
+      "checkoutNow",
+      JSON.stringify([buildCartItem(product, selectedOption, optionIndex)])
+    );
+    navigate("/cart");
   };
 
   return (
@@ -190,6 +250,8 @@ const Home = () => {
           <p>Fresh Eggs, Healthy Chicken, and simple pack-size pricing.</p>
         </div>
 
+        {actionMessage ? <p className="form-info compact">{actionMessage}</p> : null}
+
         <div className="catalog-toolbar">
           <div className="catalog-search">
             <label htmlFor="catalog-search">Search products</label>
@@ -226,7 +288,8 @@ const Home = () => {
           <div className="product-grid-modern">
             {filteredProducts.map((product) => {
               const pricingOptions = getPricingOptions(product);
-              const selectedOption = pricingOptions[selectedOptions[product._id] || 0] || pricingOptions[0];
+              const selectedOptionIndex = selectedOptions[product._id] || 0;
+              const selectedOption = pricingOptions[selectedOptionIndex] || pricingOptions[0];
 
               return (
                 <article className="product-card-modern" key={product._id}>
@@ -264,6 +327,22 @@ const Home = () => {
                     <div className="product-meta">
                       <strong>Rs. {selectedOption.price}</strong>
                       <small>{selectedOption.label}</small>
+                    </div>
+                    <div className="product-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => addToCart(product, selectedOption, selectedOptionIndex)}
+                      >
+                        Add to Cart
+                      </button>
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => buyNow(product, selectedOption, selectedOptionIndex)}
+                      >
+                        Buy Now
+                      </button>
                     </div>
                   </div>
                 </article>
